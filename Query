@@ -1,0 +1,287 @@
+1.
+select genres_Name, ifnull(cnt,0) as num from 
+(select tracks_GenreId	 , count(tracks_TrackId) as cnt from `analytics-supplychain-thd.COP.tracks`
+group by 1 ) T
+
+
+left join `analytics-supplychain-thd.COP.genres` G
+on G.genres_GenreId = T.tracks_GenreId
+order by 2 DESC
+
+2.
+
+with artist_album as (
+select a.*, b.artists_Name  from `analytics-supplychain-thd.COP.albums` a
+left join `analytics-supplychain-thd.COP.artists` b
+on a.albums_ArtistId = b.artists_ArtistId 
+),
+
+base as (
+select t.*, a.artists_Name from artist_album a
+left join `analytics-supplychain-thd.COP.tracks` t
+on t.tracks_AlbumId	 = a.albums_AlbumId),
+
+name as (
+select distinct artists_Name, tracks_GenreId from base
+where artists_Name in (select distinct artists_Name from base
+group by 1
+having count(distinct tracks_GenreId) >1))
+
+select n.artists_Name , genres_Name from name n
+join `analytics-supplychain-thd.COP.genres` g
+on n.tracks_GenreId = g.genres_GenreId 
+order by 1,2
+
+3(1)
+with artist_album as (
+select a.*, b.artists_Name  from `analytics-supplychain-thd.COP.albums` a
+left join `analytics-supplychain-thd.COP.artists` b
+on a.albums_ArtistId = b.artists_ArtistId 
+),
+
+base as (
+select t.*, a.artists_Name from artist_album a
+left join `analytics-supplychain-thd.COP.tracks` t
+on t.tracks_AlbumId	 = a.albums_AlbumId),
+
+invoice_data as (
+select * from `analytics-supplychain-thd.COP.invoices` i
+join `analytics-supplychain-thd.COP.invoice_items` a
+on i.invoices_InvoiceId = a.invoice_items_InvoiceId ),
+
+money as (
+select * from base b
+right join invoice_data i
+on b.tracks_TrackId = i.invoice_items_TrackId 
+left join `analytics-supplychain-thd.COP.genres` G
+on G.genres_GenreId = b.tracks_GenreId)
+
+
+select tracks_GenreId, genres_Name, round(sum(invoice_items_UnitPrice*invoice_items_Quantity),2) as Gross	from money
+group by 1 ,2
+order by 3 DESC
+limit 5
+
+3(2)
+with artist_album as (
+select a.*, b.artists_Name  from `analytics-supplychain-thd.COP.albums` a
+left join `analytics-supplychain-thd.COP.artists` b
+on a.albums_ArtistId = b.artists_ArtistId 
+),
+
+base as (
+select t.*, a.artists_Name from artist_album a
+left join `analytics-supplychain-thd.COP.tracks` t
+on t.tracks_AlbumId	 = a.albums_AlbumId),
+
+invoice_data as (
+select * from `analytics-supplychain-thd.COP.invoices` i
+join `analytics-supplychain-thd.COP.invoice_items` a
+on i.invoices_InvoiceId = a.invoice_items_InvoiceId ),
+
+money as (
+select * from base b
+right join invoice_data i
+on b.tracks_TrackId = i.invoice_items_TrackId 
+left join `analytics-supplychain-thd.COP.genres` G
+on G.genres_GenreId = b.tracks_GenreId)
+
+
+select tracks_GenreId, genres_Name, artists_Name, round(sum(invoice_items_UnitPrice*invoice_items_Quantity),2) as Gross	from money
+group by 1 ,2,3
+
+having tracks_GenreId	in (1,7,3,4,19)
+order by 1,4 DESC
+
+
+4(1)
+with base as (
+select * from `analytics-supplychain-thd.COP.tracks` t
+left join `analytics-supplychain-thd.COP.genres` G
+on G.genres_GenreId = T.tracks_GenreId
+where genres_Name in ("Rock", "Metal","Classical","Latin")
+
+
+),
+
+--if the albumn has one Rock song and 10 metal songs, assign this rock song tracks_Milliseconds as the length of this albums in Rock genre and sum of metal songs as the length of this albums in Metal genre
+
+
+albums as (select distinct tracks_AlbumId, genres_Name, sum(tracks_Milliseconds) over (partition by tracks_AlbumId, genres_Name) as tot from base)
+
+
+select tracks_AlbumId, genres_Name, genres_Name, tot, CUME_DIST() OVER (partition by genres_Name
+        ORDER BY tot DESC) as cumulative_distribution from albums 
+        
+
+4(2)
+with base as (
+select * from `analytics-supplychain-thd.COP.tracks` t
+left join `analytics-supplychain-thd.COP.genres` G
+on G.genres_GenreId = T.tracks_GenreId
+where genres_Name in ("Rock", "Metal","Classical","Latin")
+
+
+),
+
+--if the albumn has one Rock song and 10 metal songs, assign this rock song tracks_Milliseconds as the length of this albums in Rock genre and sum of metal songs as the length of this albums in Metal genre
+
+
+albums as (select distinct tracks_AlbumId, genres_Name, sum(tracks_Milliseconds) over (partition by tracks_AlbumId, genres_Name) as tot from base)
+
+
+        
+select distinct genres_Name , round(PERCENTILE_CONT( tot,0.95) OVER (PARTITION BY genres_Name),2) AS PERCENTILE_CONT from albums 
+
+
+ 5.
+ with invoice_data as (
+select * from `analytics-supplychain-thd.COP.invoices` i
+full outer join `analytics-supplychain-thd.COP.invoice_items` a
+on i.invoices_InvoiceId = a.invoice_items_InvoiceId )
+
+ select invoices_CustomerId, invoice_items_TrackId, count(invoice_items_TrackId) from invoice_data
+ group by 1,2
+ having count(invoice_items_TrackId) >1
+
+
+
+ select invoices_InvoiceId,invoices_CustomerId, invoices_Total,  sum(invoice_items_UnitPrice * invoice_items_Quantity) as cal, invoices_Total-sum(invoice_items_UnitPrice * invoice_items_Quantity) as diff from invoice_data
+ group by 1,2,3
+ order by 5 DESC
+
+
+ select count(distinct tracks_TrackId), tracks_name from analytics-supplychain-thd.COP.tracks
+ group by tracks_name
+ order by 1 desc
+
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Data viz
+
+ 6.
+ with artist_album as (
+select a.*, b.artists_Name  from `analytics-supplychain-thd.COP.albums` a
+left join `analytics-supplychain-thd.COP.artists` b
+on a.albums_ArtistId = b.artists_ArtistId 
+),
+
+base as (
+select t.*, a.artists_Name from artist_album a
+left join `analytics-supplychain-thd.COP.tracks` t
+on t.tracks_AlbumId	 = a.albums_AlbumId),
+
+invoice_data as (
+select * from `analytics-supplychain-thd.COP.invoices` i
+join `analytics-supplychain-thd.COP.invoice_items` a
+on i.invoices_InvoiceId = a.invoice_items_InvoiceId ),
+
+rank as (
+select *  from base b
+join invoice_data i
+on b.tracks_TrackId = i.invoice_items_TrackId 
+left join `analytics-supplychain-thd.COP.genres` G
+on G.genres_GenreId = b.tracks_GenreId
+-- where invoices_CustomerId =2
+order by invoice_items_InvoiceLineId),
+
+summary as (
+select distinct FORMAT_DATETIME("%Y-%Q", datetime (invoices_InvoiceDate)) as qtr ,genres_GenreId, sum(invoice_items_UnitPrice * invoice_items_Quantity) sales from rank 
+group by 1,2
+order by 1)
+
+-- get total sales of each genre on each quarter
+
+select s.*, g.genres_Name ,sum(sales) over (partition by qtr) from summary s
+join `analytics-supplychain-thd.COP.genres` g
+on s.genres_GenreId =g.genres_GenreId 
+
+
+7(1)
+with artist_album as (
+select a.*, b.artists_Name  from `analytics-supplychain-thd.COP.albums` a
+left join `analytics-supplychain-thd.COP.artists` b
+on a.albums_ArtistId = b.artists_ArtistId 
+),
+
+base as (
+select t.*, a.artists_Name from artist_album a
+left join `analytics-supplychain-thd.COP.tracks` t
+on t.tracks_AlbumId	 = a.albums_AlbumId),
+
+invoice_data as (
+select * from `analytics-supplychain-thd.COP.invoices` i
+join `analytics-supplychain-thd.COP.invoice_items` a
+on i.invoices_InvoiceId = a.invoice_items_InvoiceId ),
+
+rank as (
+select *  from base b
+join invoice_data i
+on b.tracks_TrackId = i.invoice_items_TrackId 
+left join `analytics-supplychain-thd.COP.genres` G
+on G.genres_GenreId = b.tracks_GenreId
+order by invoice_items_InvoiceLineId
+),
+-- get all the data on customer_id, track_id, invoice_id, genre_id level
+--remember to use left join with play_data to include the track which was not played in play_data, also use ifnull() to avoid null value
+-- In order to keep data balance for comparison between normal frequency and 6 month after purchase frequency, keep InvoiceDate < "2013-07-01" 
+
+
+dis as (
+select r.*, ifnull(p.plays_date,"2013-12-31") as plays_date ,ifnull(p.plays_play_count,0) as plays_play_count from rank r
+left join `analytics-supplychain-thd.COP.play_data` p 
+on r.invoices_CustomerId = p.plays_customer_id 
+and r.invoice_items_TrackId = p.plays_track_id 
+where invoices_InvoiceDate < "2013-7-1")
+
+-- use sum(plays_play_count) / weeks differece between invoice_date and "2013-12-31" to get the final frequency of each track played by each customer per week.
+select distinct invoices_CustomerId , tracks_TrackId, genres_Name, sum(plays_play_count) over (partition by invoices_CustomerId, invoice_items_TrackId) as cnt, datetime_diff('2013-12-31', datetime (invoices_InvoiceDate)	, week) as dates , ifnull(sum(plays_play_count) over (partition by invoices_CustomerId, invoice_items_TrackId) /datetime_diff('2013-12-31', datetime (invoices_InvoiceDate)	, week),0) as cnt_per_week from dis
+
+
+
+7(2)
+with artist_album as (
+select a.*, b.artists_Name  from `analytics-supplychain-thd.COP.albums` a
+left join `analytics-supplychain-thd.COP.artists` b
+on a.albums_ArtistId = b.artists_ArtistId 
+),
+
+base as (
+select t.*, a.artists_Name from artist_album a
+left join `analytics-supplychain-thd.COP.tracks` t
+on t.tracks_AlbumId	 = a.albums_AlbumId),
+
+invoice_data as (
+select * from `analytics-supplychain-thd.COP.invoices` i
+join `analytics-supplychain-thd.COP.invoice_items` a
+on i.invoices_InvoiceId = a.invoice_items_InvoiceId ),
+
+rank as (
+select *  from base b
+join invoice_data i
+on b.tracks_TrackId = i.invoice_items_TrackId 
+left join `analytics-supplychain-thd.COP.genres` G
+on G.genres_GenreId = b.tracks_GenreId
+order by invoice_items_InvoiceLineId
+),
+-- get all the data on customer_id, track_id, invoice_id, genre_id level
+
+
+-- join with the play_data on customer_id and track_id
+--remember to use left join with play_data to include the track which was not played in play_data, also use ifnull() to avoid null value
+-- keep InvoiceDate < "2013-07-01" to ensure after 6 month there are days left before "2013-12-31", if InvoiceDate >= "2013-07-01", then it is meaningless to add 6 months as long time to compare
+dis as (
+select r.*,   ifnull(p.plays_date,"2013-12-31") as plays_date ,ifnull(p.plays_play_count, 0) as plays_play_count,
+date_add(date (invoices_InvoiceDate), interval 6 month) as new_date from rank r
+left join `analytics-supplychain-thd.COP.play_data` p 
+on r.invoices_CustomerId = p.plays_customer_id 
+and r.invoice_items_TrackId = p.plays_track_id 
+where invoices_InvoiceDate < "2013-07-01")
+
+
+-- remember to filter to the plays_date > new_date which is 6 months later than invoice date to calculate the total counts of tracks and week difference 
+select distinct invoices_CustomerId , tracks_TrackId, genres_Name, datetime_diff('2013-12-31', new_date, week) as date_diff, sum(plays_play_count) over (partition by invoices_CustomerId, invoice_items_TrackId) as cnt, ifnull(sum(plays_play_count) over (partition by invoices_CustomerId, invoice_items_TrackId)/datetime_diff('2013-12-31', new_date, week),0) as cnt_per_week  from dis
+where plays_date > new_date
+
